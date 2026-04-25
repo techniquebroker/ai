@@ -1,0 +1,536 @@
+ <!doctype html>
+<html lang="en" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TIIB SmartShield AI Assistant</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <script src="/_sdk/data_sdk.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&amp;family=Playfair+Display:wght@700&amp;display=swap" rel="stylesheet">
+  <style>
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; font-family: 'DM Sans', sans-serif; }
+
+.chat-container { display: flex; flex-direction: column; height: 100%; }
+.messages-area { flex: 1; overflow-y: auto; padding: 16px; }
+.messages-area::-webkit-scrollbar { width: 4px; }
+.messages-area::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 4px; }
+
+.msg-bubble { max-width: 85%; padding: 12px 16px; border-radius: 18px; margin-bottom: 8px; line-height: 1.5; font-size: 14px; animation: fadeUp 0.3s ease; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+
+.msg-user { background: #0B3D2E; color: #fff; border-bottom-right-radius: 4px; margin-left: auto; }
+.msg-bot { background: #f0f2f5; color: #1a1a1a; border-bottom-left-radius: 4px; margin-right: auto; }
+
+.typing-dot { width:6px; height:6px; border-radius:50%; background:#888; animation: blink 1.4s infinite both; }
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes blink { 0%,80%,100%{opacity:0.3} 40%{opacity:1} }
+
+.pulse-ring { animation: pulseRing 1.5s ease infinite; }
+@keyframes pulseRing { 0%{box-shadow:0 0 0 0 rgba(11,61,46,0.4)} 70%{box-shadow:0 0 0 12px rgba(11,61,46,0)} 100%{box-shadow:0 0 0 0 rgba(11,61,46,0)} }
+
+.quick-btn { transition: all 0.2s; }
+.quick-btn:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+
+.input-bar { border-top: 1px solid #e5e7eb; padding: 12px 16px; background: #fff; }
+</style>
+  <style>body { box-sizing: border-box; }</style>
+ </head>
+ <body class="h-full">
+  <div id="app" class="chat-container h-full w-full" style="background:#fff;"><!-- Header -->
+   <div id="header" style="background:linear-gradient(135deg,#0B3D2E 0%,#145A3E 100%);" class="px-4 py-3 flex items-center gap-3 shadow-md flex-shrink-0"><img src="https://i.ibb.co/5hyN2ygt/file-000000001f44720aa158577566e92d3c.png" alt="TIIB Logo" class="w-10 h-10 rounded-full bg-white p-0.5 object-contain" loading="lazy" onerror="console.error('Logo failed:', this.src); this.style.background='#fff'; this.alt='TIIB';">
+    <div class="flex-1 min-w-0">
+     <div class="text-white font-semibold text-sm" id="headerTitle">
+      TIIB SmartShield
+     </div>
+     <div id="taglineEl" class="text-emerald-200 text-xs truncate">
+      Your Trusted Insurance Assistant
+     </div>
+    </div>
+   </div><!-- Messages -->
+   <div class="messages-area" id="messagesArea">
+    <div id="messagesList"></div>
+    <div id="typingIndicator" class="hidden flex items-center gap-1 msg-bubble msg-bot" style="width:fit-content;padding:12px 20px;">
+     <div class="typing-dot"></div>
+     <div class="typing-dot"></div>
+     <div class="typing-dot"></div>
+    </div>
+   </div><!-- Quick actions (shown initially) -->
+   <div id="quickActions" class="px-4 pb-2 flex-shrink-0">
+    <div class="flex flex-wrap gap-2 justify-center"><button class="quick-btn text-xs px-3 py-1.5 rounded-full border border-emerald-700 text-emerald-800 bg-emerald-50 font-medium" onclick="sendMessage('I want Motor Insurance')">🚗 Motor</button> <button class="quick-btn text-xs px-3 py-1.5 rounded-full border border-emerald-700 text-emerald-800 bg-emerald-50 font-medium" onclick="sendMessage('I need Health Insurance')">🏥 Health</button> <button class="quick-btn text-xs px-3 py-1.5 rounded-full border border-emerald-700 text-emerald-800 bg-emerald-50 font-medium" onclick="sendMessage('Tell me about Fire Insurance')">🔥 Fire</button> <button class="quick-btn text-xs px-3 py-1.5 rounded-full border border-emerald-700 text-emerald-800 bg-emerald-50 font-medium" onclick="sendMessage('I want Business Insurance')">🏢 Business</button> <button class="quick-btn text-xs px-3 py-1.5 rounded-full border border-emerald-700 text-emerald-800 bg-emerald-50 font-medium" onclick="sendMessage('Help me with a claim')">📋 Claims</button> <button class="quick-btn text-xs px-3 py-1.5 rounded-full border border-emerald-700 text-emerald-800 bg-emerald-50 font-medium" onclick="sendMessage('What if my shop catches fire?')">💡 What-If</button>
+    </div>
+   </div><!-- Input bar -->
+   <div class="input-bar flex items-end gap-2 flex-shrink-0"><button id="micBtn" class="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition" title="Voice input"> <i data-lucide="mic" style="width:18px;height:18px;"></i> </button>
+    <div class="flex-1 relative"><textarea id="userInput" rows="1" placeholder="Type your question..." class="w-full resize-none rounded-2xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition" style="max-height:100px;" onkeydown="if(event.key==='Enter'&amp;&amp;!event.shiftKey){event.preventDefault();handleSend();}"></textarea>
+    </div><button id="sendBtn" onclick="handleSend()" class="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-white transition" style="background:#0B3D2E;"> <i data-lucide="send" style="width:16px;height:16px;"></i> </button>
+   </div>
+  </div>
+  <script>
+// ---- CONFIG & STATE ----
+const defaultConfig = {
+  welcome_message: "Hi 👋 I'm your TIIB Insurance Assistant. I can help you find the right coverage in less than a minute. What would you like to insure today?",
+  company_tagline: "Your Trusted Insurance Assistant",
+  bg_color: "#ffffff",
+  header_color: "#0B3D2E",
+  text_color: "#1a1a1a",
+  accent_color: "#145A3E",
+  surface_color: "#f0f2f5",
+  font_family: "DM Sans"
+};
+
+let chatHistory = []; // in-memory conversation
+let allRecords = [];
+let voiceEnabled = true;
+let isProcessing = false;
+let recognition = null;
+let isListening = false;
+
+// Ensure Lucide icons are created after they're added to DOM
+function createLucideIcons() {
+  if (window.lucide) {
+    window.lucide.createIcons();
+  }
+}
+
+// ---- TIIB KNOWLEDGE BASE ----
+const SYSTEM_PROMPT = `You are TIIB SmartShield, the official AI Assistant for Technique International Insurance Brokers (TIIB).
+
+Your mission:
+1. Educate users about insurance in simple, clear language
+2. Recommend the best insurance solutions based on user needs
+3. Generate leads and guide users toward purchasing policies
+4. Build trust by being accurate, transparent, and helpful
+5. Assist with claims, renewals, and policy understanding
+
+Personality: Professional, friendly, reassuring. Simple English. Concise but helpful. Empathetic.
+
+Core capabilities:
+- INSURANCE ADVISOR: Ask smart questions (individual/business, asset type, location in Nigeria, budget). Recommend Motor, Health, Fire, Marine, Liability, or Business Insurance. Explain WHY.
+- SMART QUOTE: Provide estimated premium ranges. Always say "This is an estimate. A full quote will be provided by our advisor."
+- POLICY EXPLAINER: Break down coverage, exclusions, benefits using simple analogies.
+- CLAIMS ASSISTANT: Guide step-by-step (report, gather docs, submit, follow-up).
+- RENEWAL & RISK ALERTS: Remind about expiry, risks of being uninsured.
+- LEAD GENERATION: Politely collect name, phone, email, insurance need. Include CTA.
+
+Special features:
+- INSURANCE HEALTH SCORE: Based on user input, estimate coverage level (e.g. "Your Protection Score: 60% — You may be underinsured.")
+- WHAT-IF SIMULATOR: If user asks "What if X happens?" respond with possible loss, coverage gap, suggested solution.
+
+Nigeria context: Focus on fire outbreaks, theft, flooding. Use relatable local examples.
+
+Trust: Never give false guarantees. Clarify estimates. Encourage speaking with human advisor.
+Sales: Use soft urgency. Highlight value of insurance as protection not expense.
+
+End every conversation with: "Would you like a TIIB advisor to contact you with a full quote?"
+
+Keep responses concise (under 200 words unless detailed explanation needed). Use emojis sparingly for warmth.`;
+
+function generateResponse(userMsg) {
+  const msg = userMsg.toLowerCase().trim();
+
+  // Greeting
+  if (msg.match(/^(hi|hello|hey|good\s*(morning|afternoon|evening)|howdy|greetings|start|begin|intro)/)) {
+    const buttons = [
+      { label: '🚗 Motor Insurance', value: 'I want Motor Insurance' },
+      { label: '🏥 Health Insurance', value: 'I need Health Insurance' },
+      { label: '🔥 Fire Insurance', value: 'Tell me about Fire Insurance' },
+      { label: '🏢 Business', value: 'I want Business Insurance' }
+    ];
+    return { text: "Hi there! 👋 Welcome to TIIB SmartShield. I'm here to help you find the perfect insurance coverage.\n\nWhat would you like help with today?", buttons };
+  }
+
+  // Motor Insurance
+  if (msg.match(/motor|car|vehicle|auto|drive|driving|automobile/i)) {
+    if (msg.match(/how\s*much|cost|price|premium|quote|estimate|money|afford/i)) {
+      const buttons = [
+        { label: '📱 Get a Quote', value: 'Yes, I want a quote for motor insurance' },
+        { label: '🔍 Learn More', value: 'Tell me more about motor insurance' }
+      ];
+      return { text: "🚗 **Motor Insurance Estimates (Nigeria)**\n\nFor a standard vehicle:\n• **Third Party Only**: ₦15,000 – ₦30,000/year\n• **Third Party, Fire & Theft**: ₦40,000 – ₦80,000/year\n• **Comprehensive**: 3% – 5% of vehicle value/year\n\nFor example, a vehicle worth ₦5,000,000 would cost roughly ₦150,000 – ₦250,000/year for comprehensive cover.\n\n⚠️ *This is an estimate. A full quote will be provided by our advisor.*\n\nWould you like a TIIB advisor to contact you with a full quote?", buttons };
+    }
+    const buttons = [
+      { label: '💰 Get Quote', value: 'How much is motor insurance?' },
+      { label: '🛡️ Coverage', value: 'What does motor insurance cover?' }
+    ];
+    return { text: "🚗 **Motor Insurance** — Great choice! This is actually mandatory in Nigeria.\n\n**What's typically covered:**\n✅ Accidents & collision damage\n✅ Theft of your vehicle\n✅ Third-party injury or property damage\n✅ Fire damage\n\n**Types available:**\n1. **Third Party Only** — Covers others, not your car (cheapest)\n2. **Third Party, Fire & Theft** — Adds fire & theft protection\n3. **Comprehensive** — Full protection (recommended)\n\nThink of it like this: Third Party is like wearing a seatbelt for others. Comprehensive is wearing full armor for everyone! 🛡️\n\nWould you like me to help you get a quote?", buttons };
+  }
+
+  // Health Insurance
+  if (msg.match(/health|medical|hospital|doctor|sick|illness|hmo|wellness|fitness/i)) {
+    if (msg.match(/how\s*much|cost|price|premium|quote|estimate|money|afford/i)) {
+      const buttons = [
+        { label: '📱 Get a Quote', value: 'Yes, I want a health insurance quote' },
+        { label: '👥 Family Plan', value: 'Do you have family health plans?' }
+      ];
+      return { text: "🏥 **Health Insurance Estimates (Nigeria)**\n\n• **Basic Individual Plan**: ₦50,000 – ₦150,000/year\n• **Standard Family Plan**: ₦200,000 – ₦500,000/year\n• **Premium/Executive Plan**: ₦500,000 – ₦2,000,000+/year\n\nCovers: Hospital visits, surgeries, medications, lab tests, and more depending on the plan.\n\n⚠️ *This is an estimate. A full quote will be provided by our advisor.*\n\nWould you like a TIIB advisor to contact you with a full quote?", buttons };
+    }
+    const buttons = [
+      { label: '💰 Get Quote', value: 'How much is health insurance?' },
+      { label: '📖 Learn More', value: 'What does health insurance cover?' }
+    ];
+    return { text: "🏥 **Health Insurance** — One of the most important investments you can make!\n\n**What's typically covered:**\n✅ Hospital admission & treatment\n✅ Doctor consultations\n✅ Surgeries & procedures\n✅ Lab tests & diagnostics\n✅ Medications\n✅ Maternity care (on some plans)\n\n**Why it matters in Nigeria:**\nMedical emergencies can cost ₦500,000 – ₦5,000,000+ out of pocket. Health insurance means you never have to choose between your health and your savings.\n\nWould you like to explore health insurance options?", buttons };
+  }
+
+  // Fire Insurance
+  if (msg.match(/fire|burn|property|building|house|home|shop|warehouse|store/i)) {
+    if (msg.match(/what\s*if|scenario|happen|loss/i)) {
+      const buttons = [
+        { label: '📊 Get Quote', value: 'I want fire insurance' },
+        { label: '❓ More Info', value: 'Tell me more about fire insurance' }
+      ];
+      return { text: "🔥 **What-If Scenario: Fire Outbreak**\n\n**Imagine this:** Your shop in Lagos catches fire overnight.\n\n**Without insurance:**\n❌ Total loss of stock & equipment: ₦5,000,000+\n❌ Rebuilding cost: ₦2,000,000+\n❌ Lost income during recovery: ₦500,000+\n❌ Total exposure: **₦7,500,000+**\n\n**With TIIB Fire Insurance:**\n✅ Stock & equipment replaced\n✅ Building repair covered\n✅ Business interruption compensation\n✅ Your out-of-pocket: Just the annual premium\n\n**Your Protection Score: 0%** if you have no fire cover right now. 🚨\n\nFire outbreaks are one of the most common risks in Nigerian markets. Don't wait until it happens.\n\n\"Insurance is not an expense — it's protection.\" 🛡️\n\nWould you like me to connect you with a TIIB advisor?", buttons };
+    }
+    const buttons = [
+      { label: '💰 Get Quote', value: 'How much is fire insurance?' },
+      { label: '❓ Learn More', value: 'What does fire insurance cover?' }
+    ];
+    return { text: "🔥 **Fire & Property Insurance**\n\n**What's covered:**\n✅ Fire & explosion damage\n✅ Building structure\n✅ Stock & contents\n✅ Business equipment\n✅ Lightning & related damage\n\n**Optional add-ons:**\n✅ Flood damage\n✅ Theft/burglary\n✅ Business interruption\n\n**Nigeria context:** Market fires, electrical faults, and gas explosions are unfortunately common. A small premium can protect millions of naira in assets.\n\nWould you like to explore fire insurance options?", buttons };
+  }
+
+  // Marine Insurance
+  if (msg.match(/marine|ship|cargo|import|export|goods|transit|shipping/)) {
+    const buttons = [
+      { label: '📱 Get Quote', value: 'I need marine insurance' },
+      { label: '📖 Learn More', value: 'Tell me more about marine insurance' }
+    ];
+    return { text: "🚢 **Marine & Cargo Insurance**\n\n**What's covered:**\n✅ Goods in transit (sea, air, road)\n✅ Damage during loading/unloading\n✅ Piracy & theft\n✅ Natural disasters at sea\n✅ Container damage\n\n⚠️ Premium is typically 0.3% – 1.5% of cargo value.\n\n*This is an estimate. A full quote will be provided by our advisor.*\n\nAre you importing, exporting, or moving goods locally?", buttons };
+  }
+
+  // Liability Insurance
+  if (msg.match(/liabil|lawsuit|sue|legal|negligence|third.?party|public\s*liab/)) {
+    const buttons = [
+      { label: '📱 Get Quote', value: 'I need liability insurance' },
+      { label: '📖 Learn More', value: 'Tell me more about liability insurance' }
+    ];
+    return { text: "⚖️ **Liability Insurance**\n\n**What's covered:**\n✅ Claims from third parties for injury\n✅ Property damage caused by your business\n✅ Legal defense costs\n✅ Settlement payments\n\n**Types:**\n1. **Public Liability** — Claims from the general public\n2. **Product Liability** — Claims from defective products\n3. **Professional Indemnity** — Errors in professional advice\n4. **Employer's Liability** — Employee injury at work\n\nOne claim can bankrupt a small business. Let's protect you!\n\nWhat type of business do you run?", buttons };
+  }
+
+  // Business Insurance
+  if (msg.match(/business|company|enterprise|sme|corporate|office|startup|workplace|company insurance/i)) {
+    const buttons = [
+      { label: '📱 Get Quote', value: 'I want a business insurance quote' },
+      { label: '📊 What I Need', value: 'What business coverage should I have?' }
+    ];
+    return { text: "🏢 **Business Insurance** — Protect everything you've built!\n\n**Recommended coverage package:**\n1. 🔥 **Fire & Property** — Protect your premises & assets\n2. ⚖️ **Public Liability** — Cover third-party claims\n3. 💼 **Employee Compensation** — Protect your workers\n4. 📦 **Stock/Goods Insurance** — Cover your inventory\n5. 🚗 **Fleet Insurance** — Company vehicles\n6. 💻 **Equipment Insurance** — Machinery & electronics\n\nIf you only have 1-2 of these, your protection score might be **30-40%** — meaning significant gaps exist! 🚨\n\nLet's build a complete protection plan for you!\n\nWould you like help getting a business insurance quote?", buttons };
+  }
+
+  // Claims
+  if (msg.match(/claim|report|incident|accident|damage|loss|stolen|submit claim|file claim|process claim|complain/i)) {
+    const buttons = [
+      { label: '📞 Contact Advisor', value: 'I need to file a claim now' },
+      { label: '📖 Learn Process', value: 'How do I file a claim?' }
+    ];
+    return { text: "📋 **Claims Process — We're here to help!**\n\nI understand this can be stressful. Here's your step-by-step guide:\n\n**Step 1: Report the Incident** 🚨\n• Contact TIIB immediately\n• Note the date, time, and details\n• Take photos if possible\n\n**Step 2: Gather Documents** 📄\n• Policy document/number\n• Police report (if applicable)\n• Photos of damage\n• Receipts or proof of value\n\n**Step 3: Submit Your Claim** ✉️\n• Fill out the claim form\n• Attach all documents\n• Submit to TIIB\n\n**Typical timeline:** 2-8 weeks depending on claim type.\n\nDon't worry — we'll guide you through every step! 🤝\n\nWould you like me to connect you with a TIIB claims advisor right now?", buttons };
+  }
+
+  // What-if scenarios
+  if (msg.match(/what\s*if|scenario|imagine|suppose|happen\s*if/)) {
+    if (msg.match(/flood|water|rain/)) {
+      const buttons = [
+        { label: '📊 Get Quote', value: 'I want flood insurance' },
+        { label: 'Back', value: 'What other insurance do you offer?' }
+      ];
+      return { text: "🌊 **What-If: Flooding**\n\n**Scenario:** Heavy rains flood your warehouse.\n\n**Potential losses:**\n❌ Damaged stock: ₦3,000,000+\n❌ Equipment damage: ₦1,500,000+\n❌ Cleanup costs: ₦500,000+\n❌ Business downtime: ₦1,000,000+\n❌ **Total exposure: ₦6,000,000+**\n\n**With proper insurance:**\n✅ Stock & equipment covered\n✅ Business interruption compensation\n✅ Cleanup costs covered\n\nFlooding is a major risk in Lagos, Port Harcourt, and many Nigerian cities.\n\nWould you like to discuss flood coverage?", buttons };
+    }
+    if (msg.match(/theft|rob|steal|burglar|break/)) {
+      const buttons = [
+        { label: '📊 Get Quote', value: 'I want burglary insurance' },
+        { label: 'Back', value: 'What other insurance do you offer?' }
+      ];
+      return { text: "🔒 **What-If: Theft/Burglary**\n\n**Scenario:** Thieves break into your shop overnight.\n\n**Potential losses:**\n❌ Stolen goods: ₦2,000,000+\n❌ Damaged property: ₦500,000+\n❌ Lost business: ₦300,000+\n❌ **Total exposure: ₦2,800,000+**\n\n**With Burglary Insurance:**\n✅ Stolen items compensated\n✅ Property damage covered\n✅ Business interruption covered\n\nTheft is one of the top 3 risks for Nigerian businesses.\n\nWould you like to protect yourself?", buttons };
+    }
+    const buttons = [
+      { label: '🔥 Fire', value: 'What if my shop catches fire?' },
+      { label: '🔒 Theft', value: 'What if my shop gets robbed?' },
+      { label: '🌊 Flooding', value: 'What if there is flooding?' }
+    ];
+    return { text: "💡 **What-If Simulator**\n\nGreat question! Explore these scenarios to see your protection gaps:\n\n1. **What scenario** are you worried about?\n2. I'll show you potential losses\n3. Coverage gaps\n4. Recommended solutions\n\nTry one of these scenarios!", buttons };
+  }
+
+  // Insurance score
+  if (msg.match(/score|protection|coverage\s*level|how\s*(protected|covered|safe)\s*am\s*i/)) {
+    const buttons = [
+      { label: 'Personal Protection', value: 'Check my personal protection score' },
+      { label: 'Business Protection', value: 'Check my business protection score' }
+    ];
+    return { text: "📊 **Insurance Health Score Assessment**\n\nLet me calculate your protection level! Are you looking at personal or business coverage?", buttons };
+  }
+
+  // Lead collection / contact
+  if (msg.match(/contact|call|advisor|agent|speak|talk|human|phone|email|connect|yes|sure|okay/)) {
+    const buttons = [
+      { label: 'Later', value: 'I will contact you later' }
+    ];
+    return { text: "📞 **Connect with a TIIB Advisor**\n\nExcellent! Our expert advisors will provide:\n✅ A personalized full quote\n✅ Expert advice for your situation\n✅ Help with policy selection\n\nPlease share your details:\n\n**📲 Phone:** +234 (Your Number)\n**📧 Email:** your.email@example.com\n\nOur advisors typically respond within 24 hours during business days.\n\n**You can also reach us directly:**\n📧 Email: info@aborinsurance.com\n🌐 Website: www.tiaborinsurance.com\n\nShare your details and we'll get back to you promptly! 🤝", buttons };
+  }
+
+  // Renewal
+  if (msg.match(/renew|expir|lapse|due/)) {
+    const buttons = [
+      { label: '📱 Renew Now', value: 'I want to renew my policy' },
+      { label: '📖 Learn More', value: 'Why is renewal important?' }
+    ];
+    return { text: "🔄 **Policy Renewal Reminder**\n\n**Important:** An expired policy means ZERO coverage. Even one day without insurance leaves you exposed!\n\n**Risks of lapsed insurance:**\n❌ No coverage if an incident occurs\n❌ May need to pay higher premiums to restart\n❌ Gap in coverage history\n❌ Legal issues (for mandatory insurance like motor)\n\n**Renewal is easy with TIIB:**\n1. Contact us before your policy expires\n2. Review your coverage needs\n3. We'll update your policy\n4. Pay your premium\n5. You're covered! ✅\n\n\"Delaying coverage can expose you to unexpected losses.\"\n\nDo you have a policy that needs renewal?", buttons };
+  }
+
+  // General / fallback
+  return { text: "Thanks for reaching out! 😊\n\nI'm TIIB SmartShield, your insurance assistant. I can help you with:\n\n• 🔍 **Find the right insurance** for your needs\n• 💰 **Get premium estimates**\n• 📖 **Understand your policy**\n• 📋 **File or track claims**\n• 💡 **What-if scenarios**\n• 📊 **Insurance Health Score**\n\nWhat would you like to explore today?", buttons: [
+    { label: '🚗 Motor', value: 'I want Motor Insurance' },
+    { label: '🏥 Health', value: 'I need Health Insurance' },
+    { label: '🔥 Fire', value: 'Tell me about Fire Insurance' },
+    { label: '🏢 Business', value: 'I want Business Insurance' },
+    { label: '📋 Claims', value: 'Help me with a claim' }
+  ] };
+}
+
+// ---- SPEECH SYNTHESIS ----
+function speakText(text) {
+  if (!voiceEnabled || !('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  const clean = text.replace(/[*#🚗🏥🔥🏢📋💡📞📊🛡️✅❌⚠️🕳️🚨💼📦💻📄✉️📞🤲⚖️🚢🌐📧🔒🟡💪😊👋🤝💰🔍📖🔄🤔]/g, '').replace(/\*\*/g, '');
+  const utterance = new SpeechSynthesisUtterance(clean);
+  utterance.rate = 0.95;
+  utterance.pitch = 1;
+  utterance.lang = 'en-NG';
+  const voices = window.speechSynthesis.getVoices();
+  const preferred = voices.find(v => v.lang.startsWith('en') && v.name.includes('Female')) || voices.find(v => v.lang.startsWith('en'));
+  if (preferred) utterance.voice = preferred;
+  window.speechSynthesis.speak(utterance);
+}
+
+// ---- SPEECH RECOGNITION ----
+function setupSpeechRecognition() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) return;
+  recognition = new SpeechRecognition();
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  recognition.lang = 'en-NG';
+
+  recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript;
+    document.getElementById('userInput').value = transcript;
+    handleSend();
+  };
+  recognition.onend = () => { stopListening(); };
+  recognition.onerror = () => { stopListening(); };
+}
+
+function toggleListening() {
+  if (!recognition) {
+    showToast("Voice input not supported in this browser");
+    return;
+  }
+  if (isListening) { recognition.stop(); stopListening(); }
+  else { recognition.start(); startListening(); }
+}
+
+function startListening() {
+  isListening = true;
+  const btn = document.getElementById('micBtn');
+  btn.classList.add('pulse-ring');
+  btn.style.background = '#dc2626';
+  btn.style.color = '#fff';
+}
+
+function stopListening() {
+  isListening = false;
+  const btn = document.getElementById('micBtn');
+  btn.classList.remove('pulse-ring');
+  btn.style.background = '';
+  btn.style.color = '';
+}
+
+// ---- UI HELPERS ----
+function formatMessage(text) {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n/g, '<br>');
+}
+
+function addMessage(role, content, animate = true, buttons = []) {
+  const list = document.getElementById('messagesList');
+  const div = document.createElement('div');
+  div.className = `msg-bubble ${role === 'user' ? 'msg-user' : 'msg-bot'}`;
+  if (!animate) div.style.animation = 'none';
+  div.innerHTML = formatMessage(content);
+  
+  // Add button options to bot messages
+  if (buttons.length > 0 && role === 'assistant') {
+    const btnContainer = document.createElement('div');
+    btnContainer.className = 'flex flex-wrap gap-2 mt-3';
+    buttons.forEach(btn => {
+      const btnEl = document.createElement('button');
+      btnEl.className = 'text-xs px-3 py-1.5 rounded-full border border-emerald-700 text-emerald-800 bg-emerald-50 font-medium hover:bg-emerald-100 transition';
+      btnEl.textContent = btn.label;
+      btnEl.onclick = () => sendMessage(btn.value);
+      btnContainer.appendChild(btnEl);
+    });
+    div.appendChild(btnContainer);
+  }
+  
+  list.appendChild(div);
+  scrollToBottom();
+  createLucideIcons();
+}
+
+function scrollToBottom() {
+  const area = document.getElementById('messagesArea');
+  requestAnimationFrame(() => { area.scrollTop = area.scrollHeight; });
+}
+
+function showTyping() { document.getElementById('typingIndicator').classList.remove('hidden'); scrollToBottom(); }
+function hideTyping() { document.getElementById('typingIndicator').classList.add('hidden'); }
+
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.className = 'fixed top-4 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-4 py-2 rounded-full shadow-lg z-50';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+// ---- CORE SEND ----
+async function handleSend() {
+  const input = document.getElementById('userInput');
+  const text = input.value.trim();
+  if (!text || isProcessing) return;
+  sendMessage(text);
+  input.value = '';
+  input.style.height = 'auto';
+}
+
+async function sendMessage(text) {
+  if (isProcessing) return;
+  isProcessing = true;
+  document.getElementById('quickActions').classList.add('hidden');
+
+  addMessage('user', text);
+  chatHistory.push({ role: 'user', content: text });
+
+  // Save user message
+  await window.dataSdk.create({ role: 'user', content: text, timestamp: new Date().toISOString() });
+
+  showTyping();
+
+  // Simulate thinking delay
+  await new Promise(r => setTimeout(r, 800 + Math.random() * 1200));
+
+  const response = generateResponse(text);
+  hideTyping();
+  
+  // Handle response with buttons
+  if (typeof response === 'object' && response.text) {
+    addMessage('assistant', response.text, true, response.buttons || []);
+    chatHistory.push({ role: 'assistant', content: response.text });
+    await window.dataSdk.create({ role: 'assistant', content: response.text, timestamp: new Date().toISOString() });
+    speakText(response.text);
+  } else {
+    addMessage('assistant', response);
+    chatHistory.push({ role: 'assistant', content: response });
+    await window.dataSdk.create({ role: 'assistant', content: response, timestamp: new Date().toISOString() });
+    speakText(response);
+  }
+
+  isProcessing = false;
+}
+
+// ---- CLEAR CHAT ----
+async function clearChat() {
+  chatHistory = [];
+  document.getElementById('messagesList').innerHTML = '';
+  document.getElementById('quickActions').classList.remove('hidden');
+  window.speechSynthesis.cancel();
+
+  // Delete all records
+  for (const rec of allRecords) {
+    await window.dataSdk.delete(rec);
+  }
+
+  const welcome = (window.elementSdk && window.elementSdk.config && window.elementSdk.config.welcome_message) || defaultConfig.welcome_message;
+  addMessage('assistant', welcome);
+}
+
+// ---- AUTO RESIZE TEXTAREA ----
+document.getElementById('userInput').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+});
+
+// ---- INIT ----
+(async function init() {
+  // Element SDK
+  window.elementSdk.init({
+    defaultConfig,
+    onConfigChange: async (config) => {
+      const font = config.font_family || defaultConfig.font_family;
+      document.getElementById('app').style.fontFamily = `${font}, sans-serif`;
+      document.getElementById('app').style.background = config.bg_color || defaultConfig.bg_color;
+      document.getElementById('app').style.color = config.text_color || defaultConfig.text_color;
+      document.getElementById('header').style.background = `linear-gradient(135deg, ${config.header_color || defaultConfig.header_color} 0%, ${config.accent_color || defaultConfig.accent_color} 100%)`;
+      document.getElementById('taglineEl').textContent = config.company_tagline || defaultConfig.company_tagline;
+
+      // Update bot message bubbles
+      document.querySelectorAll('.msg-bot').forEach(el => {
+        el.style.background = config.surface_color || defaultConfig.surface_color;
+        el.style.color = config.text_color || defaultConfig.text_color;
+      });
+      document.querySelectorAll('.msg-user').forEach(el => {
+        el.style.background = config.header_color || defaultConfig.header_color;
+      });
+    },
+    mapToCapabilities: (config) => ({
+      recolorables: [
+        { get: () => config.bg_color || defaultConfig.bg_color, set: (v) => { config.bg_color = v; window.elementSdk.setConfig({ bg_color: v }); } },
+        { get: () => config.surface_color || defaultConfig.surface_color, set: (v) => { config.surface_color = v; window.elementSdk.setConfig({ surface_color: v }); } },
+        { get: () => config.text_color || defaultConfig.text_color, set: (v) => { config.text_color = v; window.elementSdk.setConfig({ text_color: v }); } },
+        { get: () => config.header_color || defaultConfig.header_color, set: (v) => { config.header_color = v; window.elementSdk.setConfig({ header_color: v }); } },
+        { get: () => config.accent_color || defaultConfig.accent_color, set: (v) => { config.accent_color = v; window.elementSdk.setConfig({ accent_color: v }); } },
+      ],
+      borderables: [],
+      fontEditable: { get: () => config.font_family || defaultConfig.font_family, set: (v) => { config.font_family = v; window.elementSdk.setConfig({ font_family: v }); } },
+      fontSizeable: undefined
+    }),
+    mapToEditPanelValues: (config) => new Map([
+      ["welcome_message", config.welcome_message || defaultConfig.welcome_message],
+      ["company_tagline", config.company_tagline || defaultConfig.company_tagline],
+    ])
+  });
+
+  // Data SDK
+  await window.dataSdk.init({
+    onDataChanged(data) {
+      allRecords = data;
+      // Restore chat from persisted data if page reloads and chat is empty
+      if (chatHistory.length === 0 && data.length > 0) {
+        const sorted = [...data].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        document.getElementById('messagesList').innerHTML = '';
+        sorted.forEach(rec => {
+          addMessage(rec.role, rec.content, false);
+          chatHistory.push({ role: rec.role, content: rec.content });
+        });
+        document.getElementById('quickActions').classList.add('hidden');
+      }
+    }
+  });
+
+  // Show welcome if no history
+  if (chatHistory.length === 0) {
+    const welcome = (window.elementSdk.config && window.elementSdk.config.welcome_message) || defaultConfig.welcome_message;
+    addMessage('assistant', welcome);
+  }
+
+  // Setup events
+  document.getElementById('micBtn').addEventListener('click', toggleListening);
+
+  setupSpeechRecognition();
+  if ('speechSynthesis' in window) window.speechSynthesis.getVoices();
+
+  createLucideIcons();
+})();
+</script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9ece88321527bc8b',t:'MTc3NjI5MzY2NS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
